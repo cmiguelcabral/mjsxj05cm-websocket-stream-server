@@ -40,13 +40,12 @@ func setupRouter() *gin.Engine {
 
 func main() {
 
-	mainstreamPipePath := flag.String("m", "", "")
-	substreamPipePath := flag.String("s", "", "")
+	mainstreamPipePath := flag.String("m", "", "Mainstream pipe file path")
+	substreamPipePath := flag.String("s", "", "Substream pipe file path")
 
 	flag.Parse()
 
-	fmt.Println(*mainstreamPipePath)
-	fmt.Println(*substreamPipePath)
+	validateArgs(*mainstreamPipePath, *substreamPipePath)
 
 	go consumeStream(*mainstreamPipePath, "mainstream")
 	go consumeStream(*substreamPipePath, "substream")
@@ -54,6 +53,30 @@ func main() {
 	r := setupRouter()
 	r.Run(":" + port)
 
+}
+
+func validateArgs(mainstreamPipePath string, substreamPipePath string) {
+
+	if(mainstreamPipePath == "" && substreamPipePath == "") {
+		fmt.Fprintf(os.Stderr, "Please specify at least one pipe (substream or mainstream)\n")
+        os.Exit(1)
+	}
+
+	if(mainstreamPipePath != "") {
+		_, err := os.Stat(mainstreamPipePath)
+		if err != nil {
+			fmt.Printf("Please specify a valid mainstream pipe path.\n")
+			os.Exit(2)
+		}
+	}
+
+	if(substreamPipePath != "") {
+		_, err := os.Stat(substreamPipePath)
+		if err != nil {
+			fmt.Printf("Please specify a valid substream pipe path.\n")
+			os.Exit(2)
+		}
+	}
 }
 
 func consumeStream(streamPath string, videoChannel string) {
