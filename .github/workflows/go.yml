@@ -4,19 +4,16 @@ on:
   push:
     branches:
       - '*'
-    tags:
-      - '*'
+
 env:
-  isReleaseCandidate: ${{ contains(github.ref, 'tags') && contains(github.ref, '-rc') }}
-  isFinalRelease: ${{ contains(github.ref, 'tags') && !contains(github.ref, '-rc') }}
+  isNightly: ${{ contains(github.ref, 'dev') }}
+  isFinalRelease: ${{ contains(github.ref, 'master') }}
 
 jobs:
-
   build:
     name: Build
     runs-on: ubuntu-18.04
     steps:
-
     - name: Set up Go 1.13
       uses: actions/setup-go@v1
       with:
@@ -26,50 +23,49 @@ jobs:
     - name: Check out source code
       uses: actions/checkout@v2
 
-    - name: Get dependencies
-      run: go get -v -t -d ./...
-
     - name: Compile for ARM
-      run: GOOS=linux GOARCH=arm go build -v -o websocket-stream-server .
+      run: make cross
 
-    - name: Upload Build Artifacts
-      uses: actions/upload-artifact@v1
+    - name: Create Release Candidate
+      if: env.isNightly == 'true'
+      id: create_release_candidate
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        name: websocket-stream-server
-        path: websocket-stream-server
-
-    - name: Release (pre-release)
-      if: env.isReleaseCandidate == 'true'
-      uses: ncipollo/release-action@v1
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
+        tag_name: latest-rc
+        release_name: latest-rc
         prerelease: true
-        artifacts: websocket-stream-server
-        
-    - name: Update latest-rc tag
-      if: env.isReleaseCandidate == 'true'
-      uses: ncipollo/release-action@v1
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        tag: latest-rc
-        allowUpdates: true
-        replacesArtifacts: true
-        prerelease: true
-        artifacts: websocket-stream-server
 
-    - name: Release (final)
+    - name: Create Release
       if: env.isFinalRelease == 'true'
-      uses: ncipollo/release-action@v1
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        artifacts: websocket-stream-server
-        
-    - name: Update latest tag
+        tag_name: latest
+        release_name: latest
+        prerelease: true
+
+    - name: Upload Release Asset
+      if: env.isNightly == 'true'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release_candidate.outputs.upload_url }}
+        asset_path: ./dist/websocket-stream-server
+        asset_name: websocket-stream-server
+        asset_content_type: application/zip
+
+    - name: Upload Release Asset
       if: env.isFinalRelease == 'true'
-      uses: ncipollo/release-action@v1
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        tag: latest
-        allowUpdates: true
-        replacesArtifacts: true
-        artifacts: websocket-stream-server
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./dist/websocket-stream-server
+        asset_name: websocket-stream-server
+        asset_content_type: application/zip   
